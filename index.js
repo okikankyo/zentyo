@@ -3,7 +3,7 @@ const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const solarlunar = require('solarlunar');
 
-console.log('🌙 LUNAR BOT START');
+console.log('🌙 LUNAR BOT START (CHANNEL VERSION)');
 
 const app = express();
 app.use(express.json());
@@ -57,11 +57,17 @@ async function getAccessToken() {
 }
 
 // =======================
-// メッセージ送信
+// グループ送信（channelId）
 // =======================
-async function sendMessage(userId, token, text) {
+async function sendMessage(token, text) {
+  const channelId = process.env.LW_TARGET_CHANNEL_ID;
+
+  if (!channelId) {
+    throw new Error('LW_TARGET_CHANNEL_ID が未設定です');
+  }
+
   await axios.post(
-    `https://www.worksapis.com/v1.0/bots/${BOT_ID}/users/${userId}/messages`,
+    `https://www.worksapis.com/v1.0/bots/${BOT_ID}/channels/${channelId}/messages`,
     {
       content: {
         type: 'text',
@@ -76,22 +82,27 @@ async function sendMessage(userId, token, text) {
     }
   );
 
-  console.log('✅ メッセージ送信成功');
+  console.log('✅ グループ送信成功');
 }
 
 // =======================
-// メッセージ生成
+// メッセージ作成
 // =======================
 function buildMessage(date, lunarDay) {
+  let label = '';
+
+  if (lunarDay === 1) label = '（新月）';
+  if (lunarDay === 15) label = '（満月）';
+
   return `🌙旧暦カレンダーのお知らせ
 
-2日後の ${date} は旧暦 ${lunarDay} 日です。
+2日後の ${date} は旧暦 ${lunarDay} 日 ${label} です。
 
 ご確認よろしくお願いします。`;
 }
 
 // =======================
-// Cron実行
+// Cron処理
 // =======================
 if (process.env.CRON === 'true') {
   (async () => {
@@ -114,7 +125,7 @@ if (process.env.CRON === 'true') {
       console.log(`📅 対象日: ${year}-${month}-${day}`);
       console.log(`🌙 旧暦日: ${lunar.lDay}`);
 
-      // 旧暦 1日 or 15日
+      // 判定
       if (lunar.lDay !== 1 && lunar.lDay !== 15) {
         console.log('⏭ 条件外スキップ');
         process.exit(0);
@@ -123,12 +134,10 @@ if (process.env.CRON === 'true') {
       console.log('🎯 送信条件一致');
 
       const token = await getAccessToken();
-      const userId = process.env.LW_TARGET_USER_ID;
 
       const dateStr = `${year}/${month}/${day}`;
 
       await sendMessage(
-        userId,
         token,
         buildMessage(dateStr, lunar.lDay)
       );
@@ -144,7 +153,7 @@ if (process.env.CRON === 'true') {
 }
 
 // =======================
-// Webサーバー
+// Web確認用
 // =======================
 app.get('/', (req, res) => {
   res.send('Lunar Bot Running');
